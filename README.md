@@ -26,6 +26,7 @@ When called with no subcommands, the maash program is for running script files. 
 - `maash ctl [subcommands]` AKA **maactl** - An alias for 'maash ctl'.  It's a meta-command full of subcommands to control the maash system.
 - `maash preprocess [-f|--file file-path]` Preprocesses the given file and returns it as text without executing it in bash.  If run with no argument at all it preprocesses stdin.  If run with an argument and not the -f argument, it preprocesses the given text body of the argument.
 - `maash eval [maash-command] [[argv]]` invokes a maash command without using the macro system.
+- `maash init` intended to be run in the caller scope ie in their .bashrc, run with `eval "$(maash init)"`, handles creating the maactl alias and the @@ function and any other in-bash customization needed.
 
 ## maash modules
 

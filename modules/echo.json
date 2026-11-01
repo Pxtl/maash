@@ -16,10 +16,10 @@
       "description": "Upper-case the operand"
     },
     "[": {
-      "description": "Bracketed: echo the operand between the implicit [ and the ]@@ terminator"
+      "description": "Bracketed: echo the operand between the [ of the operator and the ]@@ terminator"
     },
     "+[": {
-      "description": "Bracketed: upper-case the operand between the implicit [ and the ]@@ terminator"
+      "description": "Bracketed: upper-case the operand between the [ of the operator and the ]@@ terminator"
     }
   }
 }

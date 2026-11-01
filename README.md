@@ -210,11 +210,11 @@ Or in bracketed mode
 ```
 @@#["hello, world".ToUpper()]@@
 ```
-A bracketed operator's suffix ends with `[`, which is the implicit
-open-bracket of its operand; the operand runs to the `]@@` terminator.  In
-the example above the operator is `#[` (infix `#` plus the bracketed suffix
-`[`), so the operand is `"hello, world".ToUpper()`, the text between the
-implicit `[` and the `]@@`.
+A bracketed operator's suffix ends with `[`, the open-bracket of its
+operand; the operand runs to the `]@@` terminator.  In the example above
+the operator is `#[` (infix `#` plus the bracketed suffix `[`), so the
+operand is `"hello, world".ToUpper()`, the text between the `[` and the
+`]@@`.
 
 A module can register multiple operators.  By convention, braced mode can be
 provided by a module `@@#{var myVar = "hello, world"; return myvar;}` - it might

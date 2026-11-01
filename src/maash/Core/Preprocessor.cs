@@ -20,8 +20,8 @@ public sealed class ResolvedOperator {
 
     /// <summary>
     /// True when this operator is bracketed: the suffix (and therefore the
-    /// operator string) ends with <c>[</c>, which is the implicit open bracket
-    /// of the operand. The operand runs to the next unescaped <c>]@@</c>.
+    /// operator string) ends with <c>[</c>, the open bracket of the operand.
+    /// The operand runs to the next unescaped <c>]@@</c>.
     /// </summary>
     public bool IsBracketed => Suffix.EndsWith('[');
 
@@ -132,8 +132,8 @@ public static class Preprocessor {
             int parenClose = -1;       // index of the enclosing $( ) closer, if any
             var insideParen = false;   // true when @@ is inside a user $() — no wrapper
             if (resolved.IsBracketed) {
-                // The operator string already ends with the implicit open bracket
-                // '[', so the operand starts right at afterToken and runs to the
+                // The operator string already ends with the open bracket '[',
+                // so the operand starts right at afterToken and runs to the
                 // next unescaped ']@@' closer.
                 var close = FindBracketClose(text, afterToken);
                 if (close < 0) {

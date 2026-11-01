@@ -78,6 +78,15 @@ This document captures the coding style patterns used in this project.
         : new Result<int>(boardCode - 1);
     ```
 
+- For non-trivial ternary expressions, break onto multiple lines with the `?`
+  and `:` at the start of their own lines:
+
+    ```csharp
+    var result = someCondition
+        ? DoSomething()
+        : DoSomethingElse();
+    ```
+
 ## Comments
 
 - Use **XML-style comments** (`///`) for documentation on classes, methods,

@@ -58,7 +58,7 @@ public sealed record MaashInterpreter {
 
 /// <summary>
 /// A single operator within a module. Bracketed operators are those whose
-/// suffix ends with `[` — the `[` is the implicit open bracket of the operand
+/// suffix ends with `[` — the `[` is the open bracket of the operand
 /// (see README), e.g. suffixes `[` and `+[`.
 /// </summary>
 public sealed record MaashOperatorDefinition {

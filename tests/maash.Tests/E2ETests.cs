@@ -178,7 +178,20 @@ public class E2ETests {
         Assert.Contains("infix ''", outp);
     }
 
-    // ── render subcommand (hotkey-eval form) ─────────────────────────────────
+    [Fact]
+    public void Ctl_Use_AlnumInfix_Warns_And_Suppress_Silences() {
+        // echo's defaultInfix is empty, so -x S overrides it with an alnum infix.
+        var echoJson = Path.Combine(RepoRoot, "modules", "echo.json");
+        var warn = RunMaash(new[] { "ctl", "use", "echo", "-f", echoJson, "-x", "S" }, NewKey());
+        Assert.True(warn.rc == 0, $"load: rc={warn.rc} err={warn.err}");
+        Assert.Contains("alnum", warn.err, StringComparison.OrdinalIgnoreCase);
+        var suppressed = RunMaash(new[] { "ctl", "use", "echo", "-f", echoJson, "-x", "S",
+            "--suppress-alnum-rule" }, NewKey());
+        Assert.True(suppressed.rc == 0, $"load: rc={suppressed.rc} err={suppressed.err}");
+        Assert.DoesNotContain("alnum", suppressed.err, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // ── render subcommand (hotkey-eval form) ─────────────────────────────────────
 
     [Fact]
     public void Render_Fixture_FullyEvaluates_Operators() {

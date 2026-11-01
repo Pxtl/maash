@@ -18,9 +18,9 @@ public static class Ctl {
     public static readonly string[] Verbs = { "use", "move", "load", "remove", "clean", "help" };
 
     /// <summary>
-    /// True when a body line starts with a maactl verb (a script-mode maactl
-    /// misuse: body maactl lines are only honored in the @@/maash eval context,
-    /// never by the preprocessor).
+    /// Warnings for body lines that start with a maactl verb: a script-mode
+    /// maactl misuse, since body maactl lines are only honored in the
+    /// @@/maash eval context, never by the preprocessor.
     /// </summary>
     public static List<string> BodyMaactlWarnings(string body) {
         var warnings = new List<string>();
@@ -39,45 +39,65 @@ public static class Ctl {
     public static Command BuildCommand() {
         var ctl = new Command("ctl", "Manage maash modules and state (alias: maactl).");
 
-        var f = FileOpt();
-        var i = InlineOpt();
-        var a = AliasOpt();
-        var x = InfixOpt();
-        var p = PrimaryOpt();
-        var ac = ClobberOpt();
-        var sar = SuppressAlnumOpt();
+        var fileOpt = FileOpt();
+        var inlineOpt = InlineOpt();
+        var aliasOpt = AliasOpt();
+        var infixOpt = InfixOpt();
+        var primaryOpt = PrimaryOpt();
+        var clobberOpt = ClobberOpt();
+        var suppressAlnumOpt = SuppressAlnumOpt();
 
         // use [module] -f|--file, -i|--inline, -a|--alias, -x|--infix, -p|--primary, --allowclobber, --suppress-alnum-rule
         var useCmd = new Command("use", "Load a module by name (search dirs), file, or inline JSON.");
-        var moduleArg = new Argument<string?>("module") { Arity = ArgumentArity.ZeroOrOne, Description = "Module name (path relative to a module search dir); or use -f/-i. Use '-' for the primary position." };
+        var moduleArg = new Argument<string?>("module") {
+            Arity = ArgumentArity.ZeroOrOne,
+            Description = "Module name (relative to a module search dir); or -f/-i. Use '-' for the primary position."
+        };
         useCmd.Add((Argument)moduleArg);
-        foreach (var o in new Option[] { f, i, a, x, p, ac, sar, QuietOpt() }) {
-            useCmd.Add(o);
+        var useOptions = new Option[] {
+            fileOpt, inlineOpt, aliasOpt, infixOpt,
+            primaryOpt, clobberOpt, suppressAlnumOpt,
+            QuietOpt()
+        };
+        foreach (var option in useOptions) {
+            useCmd.Add(option);
         }
 
-        useCmd.SetAction(pr => RunUse(pr, pr.GetValue<string?>(moduleArg), f, i, a, x, p, ac, sar));
+        useCmd.SetAction(pr => RunUse(pr,
+            pr.GetValue<string?>(moduleArg), fileOpt, inlineOpt, aliasOpt, infixOpt,
+            primaryOpt, clobberOpt, suppressAlnumOpt));
         ctl.Add(useCmd);
 
         // move [module-alias] (accepts use params)
         var moveCmd = new Command("move", "Move an existing module to a new alias/infix/primary.");
         var moveModuleArg = new Argument<string>("module") { Description = "Existing module alias." };
         moveCmd.Add(moveModuleArg);
-        foreach (var o in new Option[] { a, x, p, sar }) {
-            moveCmd.Add(o);
+        foreach (var option in new Option[] { aliasOpt, infixOpt, primaryOpt, suppressAlnumOpt }) {
+            moveCmd.Add(option);
         }
 
-        moveCmd.SetAction(pr => RunMove(pr.GetRequiredValue<string>(moveModuleArg), pr, a, x, p, sar));
+        moveCmd.SetAction(pr => RunMove(pr.GetRequiredValue<string>(moveModuleArg), pr,
+            aliasOpt, infixOpt, primaryOpt, suppressAlnumOpt));
         ctl.Add(moveCmd);
 
         // load [file-path] - alias of use -f
         var loadCmd = new Command("load", "Load a module file (alias of 'use -f').");
         var loadFileArg = new Argument<string>("file") { Description = "Path to a module JSON file. Use '-' for the primary position." };
         loadCmd.Add((Argument)loadFileArg);
-        foreach (var o in new Option[] { a, x, p, ac, sar }) {
-            loadCmd.Add(o);
+        foreach (var option in new Option[] { aliasOpt, infixOpt, primaryOpt, clobberOpt, suppressAlnumOpt }) {
+            loadCmd.Add(option);
         }
 
-        loadCmd.SetAction(pr => UseRun(pr, pr.GetRequiredValue<string>(loadFileArg), null, a, x, p, ac, sar, asFile: true));
+        loadCmd.SetAction(pr => UseRun(
+            pr,
+            pr.GetRequiredValue<string>(loadFileArg),
+            null,
+            aliasOpt,
+            infixOpt,
+            primaryOpt,
+            clobberOpt,
+            suppressAlnumOpt,
+            asFile: true));
         ctl.Add(loadCmd);
 
         // remove [alias]
@@ -119,16 +139,17 @@ public static class Ctl {
         });
         ctl.Add(cleanCmd);
 
-        // help [topic] [--file F]
+        // help [topic] [--file module-file]
         var helpCmd = new Command("help", "Show help for a module or operator (same as maash help).");
         var helpTopicArg = new Argument<string?>("topic") { Arity = ArgumentArity.ZeroOrOne };
         helpCmd.Add(helpTopicArg);
-        var hf = new Option<string?>("-f", "--file") { DefaultValueFactory = _ => (string?)null };
-        helpCmd.Add(hf);
+        // -f/--file: show help for a module read directly from its file (no load needed).
+        var helpFileOpt = new Option<string?>("-f", "--file") { DefaultValueFactory = _ => (string?)null };
+        helpCmd.Add(helpFileOpt);
         helpCmd.SetAction(pr => {
-            var f2 = pr.GetValue<string?>(hf);
-            if (f2 != null) {
-                return Program.HelpRunFile(f2);
+            var helpFilePath = pr.GetValue<string?>(helpFileOpt);
+            if (helpFilePath != null) {
+                return Program.HelpRunFile(helpFilePath);
             }
 
             return Program.HelpRun(pr.GetValue<string?>(helpTopicArg));
@@ -139,70 +160,150 @@ public static class Ctl {
     }
 
     // ---------- option factory (shared across subcommands; one instance added per command) ----------
-    static Option<string?> FileOpt() => new("-f", "--file") { Description = "Module file path (overrides positional name).", DefaultValueFactory = _ => (string?)null };
-    static Option<string?> InlineOpt() => new("-i", "--inline") { Description = "Inline module JSON (overrides positional name).", DefaultValueFactory = _ => (string?)null };
-    static Option<string?> AliasOpt() => new("-a", "--alias") { Description = "Module alias (default: use-name or filename).", DefaultValueFactory = _ => (string?)null };
-    static Option<string?> InfixOpt() => new("-x", "--infix") { Description = "Custom infix (default: module name).", DefaultValueFactory = _ => (string?)null };
-    static Option<bool> PrimaryOpt() => new("-p", "--primary") { Description = "Mark as primary module.", DefaultValueFactory = _ => false };
-    static Option<bool> ClobberOpt() => new("--allowclobber") { Description = "Allow clobbering an existing operator registration.", DefaultValueFactory = _ => false };
-    static Option<bool> SuppressAlnumOpt() => new("--suppress-alnum-rule") { Description = "Do not force the '@' suffix on alphanumeric infixes.", DefaultValueFactory = _ => false };
-    static Option<bool> QuietOpt() => new("-q", "--quiet") { Description = "Suppress stderr echoes.", DefaultValueFactory = _ => false };
+    static Option<string?> FileOpt() =>
+        new("-f", "--file") {
+            Description = "Module file path (overrides positional name).",
+            DefaultValueFactory = _ => (string?)null
+        };
+    static Option<string?> InlineOpt() =>
+        new("-i", "--inline") {
+            Description = "Inline module JSON (overrides positional name).",
+            DefaultValueFactory = _ => (string?)null
+        };
+    static Option<string?> AliasOpt() =>
+        new("-a", "--alias") {
+            Description = "Module alias (default: use-name or filename).",
+            DefaultValueFactory = _ => (string?)null
+        };
+    static Option<string?> InfixOpt() =>
+        new("-x", "--infix") {
+            Description = "Custom infix (default: module name).",
+            DefaultValueFactory = _ => (string?)null
+        };
+    static Option<bool> PrimaryOpt() =>
+        new("-p", "--primary") {
+            Description = "Mark as primary module.",
+            DefaultValueFactory = _ => false
+        };
+    static Option<bool> ClobberOpt() =>
+        new("--allowclobber") {
+            Description = "Allow clobbering an existing operator registration.",
+            DefaultValueFactory = _ => false
+        };
+    static Option<bool> SuppressAlnumOpt() =>
+        new("--suppress-alnum-rule") {
+            Description = "Do not force the '@' suffix on alphanumeric infixes.",
+            DefaultValueFactory = _ => false
+        };
+    static Option<bool> QuietOpt() =>
+        new("-q", "--quiet") {
+            Description = "Suppress stderr echoes.",
+            DefaultValueFactory = _ => false
+        };
 
     // ---------- handlers ----------
 
-    internal static int RunUse(ParseResult pr, string? positionalOrFile, Option<string?> fOpt, Option<string?> iOpt,
-        Option<string?> aOpt, Option<string?> xOpt, Option<bool> pOpt, Option<bool> acOpt, Option<bool> sarOpt)
-        => UseRun(pr, positionalOrFile, pr.GetValue(fOpt), aOpt, xOpt, pOpt, acOpt, sarOpt, asFile: false, inline: pr.GetValue(iOpt));
+    /// <summary>
+    /// Action for 'ctl use': reads the parsed options and delegates to UseRun
+    /// (asFile false).
+    /// </summary>
+    /// <returns>0 on success, 1 on error.</returns>
+    internal static int RunUse(ParseResult parseResult,
+        string? moduleArgument,
+        Option<string?> fileOpt,
+        Option<string?> inlineOpt,
+        Option<string?> aliasOpt,
+        Option<string?> infixOpt,
+        Option<bool> primaryOpt,
+        Option<bool> clobberOpt,
+        Option<bool> suppressAlnumOpt) {
+        return UseRun(
+            parseResult,
+            moduleArgument,
+            parseResult.GetValue(fileOpt),
+            aliasOpt,
+            infixOpt,
+            primaryOpt,
+            clobberOpt,
+            suppressAlnumOpt,
+            asFile: false,
+            inline: parseResult.GetValue(inlineOpt));
+    }
 
-    internal static int UseRun(ParseResult pr, string? nameArg, string? fileArg,
-        Option<string?> aOpt, Option<string?> xOpt, Option<bool> pOpt, Option<bool> acOpt, Option<bool> sarOpt,
-        bool asFile = false, string? inline = null) {
+    /// <summary>
+    /// Shared load implementation for 'ctl use' (asFile false) and 'ctl load'
+    /// (asFile true): loads a module by name, -f file, or -i inline and
+    /// persists the registry.
+    /// </summary>
+    /// <returns>0 on success, 1 on error.</returns>
+    internal static int UseRun(ParseResult parseResult,
+        string? nameArg,
+        string? fileArg,
+        Option<string?> aliasOpt,
+        Option<string?> infixOpt,
+        Option<bool> primaryOpt,
+        Option<bool> clobberOpt,
+        Option<bool> suppressAlnumOpt,
+        bool asFile = false,
+        string? inline = null) {
         try {
-            var alias = pr.GetValue(aOpt);
-            var infix = pr.GetValue(xOpt);
-            var primary = pr.GetValue(pOpt);
-            var allowClobber = pr.GetValue(acOpt);
-            var suppressAlnum = pr.GetValue(sarOpt);
+            var alias = parseResult.GetValue(aliasOpt);
+            var infix = parseResult.GetValue(infixOpt);
+            var primary = parseResult.GetValue(primaryOpt);
+            var allowClobber = parseResult.GetValue(clobberOpt);
+            var suppressAlnum = parseResult.GetValue(suppressAlnumOpt);
 
             MaashModule module;
-            string declared;
+            string declaredName;
             if (inline is not null) {
-                (module, declared) = LoadInline(inline, asFile ? nameArg : alias);
+                (module, declaredName) = LoadInline(inline, asFile ? nameArg : alias);
             } else if (fileArg != null) {
-                (module, declared) = ModuleSource.LoadFromFile(fileArg);
+                (module, declaredName) = ModuleSource.LoadFromFile(fileArg);
             } else {
-                var byName = asFile ? (fileArg ?? nameArg) : (nameArg ?? fileArg);
+                var byName = asFile
+                    ? (fileArg ?? nameArg)
+                    : (nameArg ?? fileArg);
                 if (byName is null) {
                     throw new MaashException("module name, -f file, or -i inline required");
                 }
 
-                (module, declared) = LoadByNameOrPath(byName);
+                (module, declaredName) = LoadByNameOrPath(byName);
             }
 
-            var usedAlias = alias ?? declared;
+            var usedAlias = alias ?? declaredName;
             var reg = StateBridge.LoadRegistry();
-            var warns = reg.Load(module, usedAlias, infix, primary, allowClobber: allowClobber, suppressAlnumRule: suppressAlnum);
+            var warnings = reg.Load(module, usedAlias, infix, primary,
+                allowClobber: allowClobber, suppressAlnumRule: suppressAlnum);
             StateBridge.SaveRegistry(reg);
-            foreach (var w in warns) {
-                Console.Error.WriteLine("maash: " + w);
+            foreach (var warning in warnings) {
+                Console.Error.WriteLine("maash: " + warning);
             }
 
-            var actualInfix = reg.TryGetModule(usedAlias, out var lm) && lm is not null ? lm.Infix : (infix ?? declared);
+            var actualInfix = reg.TryGetModule(usedAlias, out var loadedModule) && loadedModule is not null
+                ? loadedModule.Infix
+                : (infix ?? declaredName);
             Console.WriteLine("loaded: " + usedAlias + "  (infix '" + actualInfix + "')");
             return 0;
-        } catch (MaashException ex) { Console.Error.WriteLine("maash: " + ex.Message); return 1; } catch (InvalidOperationException ex) { Console.Error.WriteLine("maash: " + ex.Message); return 1; }
+        } catch (MaashException ex) {
+            Console.Error.WriteLine("maash: " + ex.Message);
+            return 1;
+        } catch (InvalidOperationException ex) {
+            Console.Error.WriteLine("maash: " + ex.Message);
+            return 1;
+        }
     }
 
-    static int RunMove(string alias, ParseResult pr, Option<string?> aOpt, Option<string?> xOpt, Option<bool> pOpt, Option<bool> sarOpt) {
+    static int RunMove(string alias, ParseResult parseResult, Option<string?> aliasOpt, Option<string?> infixOpt,
+        Option<bool> primaryOpt, Option<bool> suppressAlnumOpt) {
         try {
             var reg = StateBridge.LoadRegistry();
-            if (!reg.TryGetModule(alias, out var lm) || lm is null) {
+            if (!reg.TryGetModule(alias, out var loaded) || loaded is null) {
                 Console.Error.WriteLine("maash: no module with alias '" + alias + "'");
                 return 1;
             }
-            var newAlias = pr.GetValue(aOpt);
-            var newInfix = pr.GetValue(xOpt);
-            var newPrimary = pr.GetValue(pOpt);
+            var newAlias = parseResult.GetValue(aliasOpt);
+            var newInfix = parseResult.GetValue(infixOpt);
+            var newPrimary = parseResult.GetValue(primaryOpt);
 
             if (newAlias != null && newAlias != alias) {
                 if (reg.Modules.Any(m => m.Alias == newAlias)) {
@@ -210,7 +311,8 @@ public static class Ctl {
                     return 1;
                 }
                 reg.Remove(alias);
-                reg.Load(lm.Module, newAlias, newInfix ?? lm.Infix, newPrimary, suppressAlnumRule: lm.SuppressAlnumRule);
+                reg.Load(loaded.Module, newAlias, newInfix ?? loaded.Infix, newPrimary,
+                    suppressAlnumRule: loaded.SuppressAlnumRule);
             } else {
                 reg.Move(alias, newInfix, primary: newPrimary ? (bool?)true : null);
             }
@@ -218,7 +320,13 @@ public static class Ctl {
             StateBridge.SaveRegistry(reg);
             Console.WriteLine("moved: " + (newAlias ?? alias));
             return 0;
-        } catch (MaashException ex) { Console.Error.WriteLine("maash: " + ex.Message); return 1; } catch (InvalidOperationException ex) { Console.Error.WriteLine("maash: " + ex.Message); return 1; }
+        } catch (MaashException ex) {
+            Console.Error.WriteLine("maash: " + ex.Message);
+            return 1;
+        } catch (InvalidOperationException ex) {
+            Console.Error.WriteLine("maash: " + ex.Message);
+            return 1;
+        }
     }
 
     // ---------- module loading ----------

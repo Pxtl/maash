@@ -91,6 +91,12 @@ public sealed class ModuleRegistry {
 
         // Infix precedence: explicit -x/--infix > module defaultInfix > module name.
         var effectiveInfix = infix ?? module.DefaultInfix ?? module.Name;
+        if (LoadedModule.IsAlnumInfix(effectiveInfix) && !suppressAlnumRule) {
+            warnings.Add(
+                $"WARN: infix '{effectiveInfix}' is alphanumeric: the empty-suffix operator "
+                + $"is registered as '@@{effectiveInfix}@'; use --suppress-alnum-rule to keep the empty suffix.");
+        }
+
         _modules[name] = new LoadedModule(module, name, effectiveInfix, primary, suppressAlnumRule);
 
         if (primary && _inferredPrimaryAlias is not null && _inferredPrimaryAlias != name) {

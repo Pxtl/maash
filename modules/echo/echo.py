@@ -6,14 +6,15 @@ subtle stdin buffering interactions), dispatches on the operator's trailing
 character, and reports the parsed character-length so the scanner resumes
 right after the consumed operand text.
 
-Dispatch:
-  op ending '+'/'x'/'+['  -> UPPER (upper-cases the operand)
-  otherwise             -> ECHO (returns operand as-is)
+Example (empty-infix 'echo' module):
+  @@[text]@@     => text     (suffix '[' : bracketed echo)
+  @@+[text]@@   => TEXT     (suffix '+[' : bracketed upper)
+  @@text@@      => text     (primary, empty suffix)
+  @@+text@@     => TEXT     (suffix '+' : upper)
 
-The trailing '+' also distinguishes '@@+' (upper) from '@@' (echo) for the
-primary/echo fixture.  For alnum-infix forms the primary-suffix operator
-'@@<infix>@' has the bare 'x' form echo and '@@<infix>+' forms upper
-(echo.py's trailing-char dispatch handles both without extra config).
+Dispatch (by trailing character of the operator string):
+  '+'/'x'/'+['  -> UPPER (upper-cases the operand)
+  otherwise     -> ECHO (returns operand as-is)
 """
 import sys
 

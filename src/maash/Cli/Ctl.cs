@@ -1,11 +1,11 @@
-namespace Maash.Cli;
-
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.CommandLine;
 using Maash.Core;
+
+namespace Maash.Cli;
 using Maash.State;
 
 /// <summary>
@@ -110,7 +110,7 @@ public static class Ctl {
             var alias = pr.GetRequiredValue<string>(removeAliasArg);
             var reg = StateBridge.LoadRegistry();
             if (!reg.TryGetModule(alias, out _)) {
-                Console.Error.WriteLine("maash: no module with alias '" + alias + "'");
+                Console.Error.WriteLine($"maash: no module with alias '{alias}'");
                 return 1;
             }
             reg.Remove(alias);
@@ -298,7 +298,7 @@ public static class Ctl {
         try {
             var reg = StateBridge.LoadRegistry();
             if (!reg.TryGetModule(alias, out var loaded) || loaded is null) {
-                Console.Error.WriteLine("maash: no module with alias '" + alias + "'");
+                Console.Error.WriteLine($"maash: no module with alias '{alias}'");
                 return 1;
             }
             var newAlias = parseResult.GetValue(aliasOpt);
@@ -345,7 +345,7 @@ public static class Ctl {
             return ModuleSource.LoadFromFile(found);
         }
 
-        throw new MaashException("module not found: " + nameOrPath + " (search dirs: " + string.Join(":", ModuleSource.SearchDirs) + ")");
+        throw new MaashException($"module not found: {nameOrPath} (search dirs: {string.Join(":", ModuleSource.SearchDirs)})");
     }
 
     static (MaashModule, string) LoadInline(string json, string? declaredName) {
@@ -388,6 +388,11 @@ public static class Ctl {
         return path;
     }
 
+    /// <summary>
+    /// Parse a <c>#use</c> / <c>#remove</c> header line against the registry.
+    /// Verb dispatch is shared with the CLI commands; header semantics are
+    /// applied on top (file path resolution, alnum-rule warning).
+    /// </summary>
     public static (HeaderDirective Directive, List<string> Warnings) ApplyHeaderLine(ModuleRegistry reg, string line, bool authoritativeUse = false, string? baseDir = null) {
         var warns = new List<string>();
         var d = new HeaderDirective();
@@ -414,9 +419,7 @@ public static class Ctl {
             }
             string val = "";
             bool hasVal = pos + 1 < fields.Length && !fields[pos + 1].StartsWith("-");
-            if (hasVal) { val = fields[pos + 1]; pos += 2; } else {
-                pos++;
-            }
+            if (hasVal) { val = fields[pos + 1]; pos += 2; } else { pos++; }
 
             switch (tok) {
                 case "-p": case "--primary": d.IsPrimary = true; break;
@@ -476,7 +479,7 @@ public static class Ctl {
                     break;
                 }
                 if (!reg.TryGetModule(d.Name, out var lm) || lm is null) {
-                    warns.Add("maactl: no module with alias '" + d.Name + "'.");
+                    warns.Add($"maactl: no module with alias '{d.Name}'.");
                     break;
                 }
                 if (d.Alias != null && d.Alias != d.Name) {

@@ -1,8 +1,5 @@
 namespace Maash.State;
 
-using System;
-using System.IO;
-
 /// <summary>Session state dir for maash ($TMPDIR/maash/[key]/).</summary>
 public static class StateDir {
     /// <summary>Session key from MAASH_STATE_KEY / MAASH_STATE_DIR env, else "interactive".</summary>

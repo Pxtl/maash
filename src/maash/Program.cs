@@ -1,14 +1,11 @@
-namespace Maash;
-
-using System;
-using System.Collections.Generic;
 using System.CommandLine;
 using System.CommandLine.Parsing;
 using System.Diagnostics;
-using System.IO;
 using Maash.Cli;
 using Maash.Core;
 using Maash.State;
+
+namespace Maash;
 
 public sealed class Program {
     public static int Main(string[] args) {

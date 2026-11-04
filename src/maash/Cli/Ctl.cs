@@ -1,12 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.CommandLine;
 using Maash.Core;
+using Maash.State;
 
 namespace Maash.Cli;
-using Maash.State;
 
 /// <summary>
 /// <c>maash ctl</c> subcommand (alias: maactl): manage loaded modules, primary

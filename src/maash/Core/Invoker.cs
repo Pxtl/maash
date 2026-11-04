@@ -1,11 +1,8 @@
-namespace Maash.Core;
-
-using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
 using System.Text;
+
+namespace Maash.Core;
 
 /// <summary>
 /// The M1 process protocol between maash and a module's interpreter process.

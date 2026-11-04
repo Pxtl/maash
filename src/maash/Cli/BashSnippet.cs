@@ -1,5 +1,3 @@
-using System;
-
 namespace Maash;
 
 /// <summary>Bash integration snippet printed by <c>maash init</c>.</summary>

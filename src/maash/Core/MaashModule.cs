@@ -1,7 +1,6 @@
-namespace Maash.Core;
-
-using System.Collections.Generic;
 using System.Text.Json.Serialization;
+
+namespace Maash.Core;
 
 /// <summary>
 /// Parsed module definition (JSON schema from README §"Module JSON").

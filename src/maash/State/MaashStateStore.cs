@@ -1,11 +1,8 @@
-namespace Maash.State;
-
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Maash.Core;
+
+namespace Maash.State;
 
 /// <summary>A loaded module entry: module definition + resolved identity (alias/infix/primary).</summary>
 public class LoadedModuleEntry {

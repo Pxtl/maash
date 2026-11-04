@@ -1,9 +1,7 @@
-namespace Maash.Core;
-
-using System;
-using System.Collections.Generic;
 using System.Text.Json;
 using Maash.State;
+
+namespace Maash.Core;
 
 /// <summary>
 /// Loads module definitions from the session's module search directories and

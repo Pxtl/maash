@@ -1,9 +1,8 @@
-namespace Maash.Core;
-
-using System;
 using System.Text;
 using Maash.State;
 using static Maash.State.StateBridge;
+
+namespace Maash.Core;
 
 public sealed record EvalResult(string Output, bool Parsed, int ExitCode);
 

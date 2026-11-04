@@ -192,9 +192,18 @@ maash operators greedily (so longest-operator-wins).  Maash operators and their
 operands are then sent onto their interpreter of the module's choice. It is the
 module's responsibility to provide not just output, but also respond with the
 length of the parsed operand so that maash can know what range of the bash
-string to replace.  If the module cannot parse and determine the length of the
-operand, maash will error unless run in bracketed mode, in which the maash
-operator parameter ends with `]@@`.
+string to replace.
+
+There are two kinds of operator, by operand ownership:
+
+- **Module-scoped** (the default): the module owns the operand's extent.
+  maash gives the module the rest of the input from just after the operator
+  and the module reports how many characters of it it consumed
+  (`parsedLength`, M1).  maash does not parse the operand's syntax at all.
+- **Here-bracketed**: flagged in the module's JSON
+  (`"hereBracketed": true`); maash owns the extent.  The operand runs from
+  just after the operator (and any whitespace) to the `]@@` terminator, and
+  the module is handed the bare operand.
 
 Maash operators will generally accept exactly one operand in script-file mode,
 although the `maash eval` and `maash preprocess` subcommands will accept an
@@ -206,15 +215,14 @@ So, for a C#-based maash-operator with the infix `#`
 ```
 @@#"hello, world".ToUpper()
 ```
-Or in bracketed mode
+Or in here-bracketed mode
 ```
 @@#["hello, world".ToUpper()]@@
 ```
-A bracketed operator's suffix ends with `[`, the open-bracket of its
-operand; the operand runs to the `]@@` terminator.  In the example above
-the operator is `#[` (infix `#` plus the bracketed suffix `[`), so the
-operand is `"hello, world".ToUpper()`, the text between the `[` and the
-`]@@`.
+The here-bracketed flag lives in the module's JSON (`"hereBracketed": true`),
+not in the suffix.  In the example above the operand is
+`"hello, world".ToUpper()`, the text between the operator and the `]@@`
+terminator; the module is handed that bare operand.
 
 A module can register multiple operators.  By convention, braced mode can be
 provided by a module `@@#{var myVar = "hello, world"; return myvar;}` - it might

@@ -67,12 +67,26 @@ public static class Preprocessor {
     /// <c>$(maash eval '@@OPT' operand)</c>.
     /// </summary>
     /// <param name="evaluate">Optional render-mode callback. When supplied, each
-    /// resolved operator is fully evaluated now (callback receives the resolved
-    /// operator and the trimmed operand and must return its result text) and the
-    /// result is spliced into the output as a bash single-quoted literal instead
-    /// of a <c>maash eval</c> wrapper. Used by <c>maash render</c> (hotkey-eval form).
+    /// resolved operator is fully evaluated now: the callback receives the
+    /// resolved operator and the operand text and must return an
+    /// <see cref="EvalOutcome"/> (result text plus how many chars of the operand
+    /// the module consumed). The result is spliced into the output as a bash
+    /// single-quoted literal instead of a <c>maash eval</c> wrapper. Used by
+    /// <c>maash render</c> (hotkey-eval form). For here-bracketed operators the
+    /// operand is maash-scoped (up to the <c>']@@'</c> closer); for non-here-
+    /// bracketed operators it is the rest of the text from the operand start to
+    /// end-of-text.
     /// </param>
-    public static PreprocessResult Run(ModuleRegistry modules, string text, Func<ResolvedOperator, string, string>? evaluate = null) {
+    /// <param name="parseLength">Callback for non-here-bracketed operators when
+    /// <paramref name="evaluate"/> is not supplied: receives the resolved operator
+    /// and the rest of the text from the operand start to end-of-text and must
+    /// return how many chars the module consumed as its operand (M1
+    /// <c>parseLength</c>). Without it a non-here-bracketed operator cannot be
+    /// scoped and Run throws.
+    /// </param>
+    public static PreprocessResult Run(ModuleRegistry modules, string text,
+        Func<ResolvedOperator, string, EvalOutcome>? evaluate = null,
+        Func<ResolvedOperator, string, int>? parseLength = null) {
         var warnings = new List<string>();
         var output = new StringBuilder(text.Length + 64);
         var pos = 0;
@@ -98,87 +112,92 @@ public static class Preprocessor {
             }
 
             string operand;
-            int end;
-            int parenClose = -1;       // index of the enclosing $( ) closer, if any
-            var insideParen = false;   // true when @@ is inside a user $() — no wrapper
-            if (resolved.IsBracketed) {
-                // The operator string already ends with the open bracket '[',
-                // so the operand starts right at afterToken and runs to the
-                // next unescaped ']@@' closer.
+            string? evalOut = null;
+            var end = afterToken;
+            if (resolved.IsHereBracketed) {
+                // Here-bracketed: maash owns the scoping. The operator string
+                // already ends with the open bracket '[', so the operand starts
+                // right at afterToken and runs to the next unescaped ']@@'
+                // closer.
                 var close = IndexOfHereBracketClose(text, afterToken);
                 if (close < 0) {
                     throw new MaashPreprocessorException(
-                        $"Unterminated bracketed operand for operator '@@{resolved.OperatorString}': no ']@@' closer.");
+                        $"Unterminated here-bracketed operand for operator '@@{resolved.OperatorString}': no ']@@' closer.");
                 }
 
                 operand = text[afterToken..close];
                 end = close + 3;                    // past the ']@@' closer
-                // If the operator sits inside a user $( ), the user's own closer
-                // will close the bare invocation we emit below.
-                var p = FindBalancedCloseParen(text, idx, text.Length);
-                if (p > idx) { insideParen = true; parenClose = p; }
+                if (evaluate is not null) {
+                    evalOut = evaluate(resolved, operand).Output;
+                }
             } else {
-                // Non-bracketed operand scoping.
-                //
-                // If the operator sits inside a bash command-substitution
-                // `$( ... )`, the operand must be scoped to that innermost
-                // unmatched `)`. Maash's sugar wraps each invocation in `$( )`,
-                // so scoping to the nearest balance closes the wrapping `$( )`
-                // cleanly for the outer bash. The module remains responsible for
-                // reporting how much it consumed at runtime (`maash eval`);
-                // here we only need a valid bash-quoted string.
-                //
-                // Bracketed operators are NOT scoping-aware: the closing `]@@`
-                // terminates the operand before any paren tracking applies.
-                var next = FindOperator(text, afterToken);
-                var stop = next < 0 ? text.Length : next;
-
-                var inner = FindBalancedCloseParen(text, afterToken, stop);
-                if (inner >= 0) {
-                    stop = inner;         // operand ends at innermost enclosing $( ) closer
-                    parenClose = inner;
-                    insideParen = true;   // preprocessor will NOT emit $( ) wrapper
+                // Non-here-bracketed: maash is dumb about the operand's extent.
+                // The module owns it: the module receives the rest of the text
+                // (from afterToken to end-of-text) and reports how many chars it
+                // consumed (M1 parseLength / render parsed-length).
+                var rest = text[afterToken..];
+                int n;
+                if (evaluate is not null) {
+                    var outcome = evaluate(resolved, rest);
+                    evalOut = outcome.Output;
+                    n = outcome.ParsedLength;
+                } else if (parseLength is not null) {
+                    n = parseLength(resolved, rest);
+                } else {
+                    throw new MaashPreprocessorException(
+                        $"Non-here-bracketed operator '@@{resolved.OperatorString}' has a module-owned operand extent; maash cannot scope it without a module (use 'maash render' or supply a parseLength callback).");
                 }
 
-                operand = text[afterToken..stop];
-                end = stop;
+                if (n < 0 || n > rest.Length) {
+                    throw new MaashPreprocessorException(
+                        $"Module reported parsed length {n} outside the operand range [0, {rest.Length}] for operator '@@{resolved.OperatorString}'.");
+                }
+
+                operand = rest[..n];
+                end = afterToken + n;
+            }
+
+            // If the char right after the operand extent is the ')' closer of a
+            // '$(' opened in the current literal chunk, the operator sits inside
+            // a user $( ): emit the invocation bare (no $( ) wrapper) so the
+            // user's own closer closes it, and consume that closer.
+            var dOpen = text.LastIndexOf("$(", idx, StringComparison.Ordinal);
+            var insideParen = dOpen >= pos && end < text.Length && text[end] == ')';
+            if (insideParen) {
+                end++;                                 // consume the user's ')'
             }
 
             // Convention: operators are invoked without leading whitespace.
             var t = operand.TrimStart();
 
-            if (evaluate is not null) {
-                // Render mode: fully evaluate the op now and splice the result as a
-                // bash literal. No maash eval wrapper is emitted.
-                var result = evaluate(resolved, t);
+            if (evalOut is not null) {
+                // Render mode: splice the result as a bash literal. No maash eval
+                // wrapper is emitted.
                 if (insideParen) {
                     // If the user's $( ) wraps only the op (no command prefix),
                     // drop the $( ) entirely and splice the literal value in its
                     // place. Otherwise the result becomes the substitution body
                     // and we re-emit the closer.
                     // The enclosing opener is the nearest '$(' at or before the
-                    // operator start (insideParen guarantees its matching
-                    // closer exists, so the opener exists too).
-                    var dOpen = text.LastIndexOf("$(", idx, StringComparison.Ordinal);
-                    var prefixEmpty = dOpen >= pos && IsAllWhitespace(text, dOpen + 2, idx - (dOpen + 2));
-                    end = parenClose + 1;
+                    // operator start (insideParen guarantees it exists).
+                    var prefixEmpty = IsAllWhitespace(text, dOpen + 2, idx - (dOpen + 2));
                     if (prefixEmpty) {
                         // Truncate to just before the $( (accounting for any
                         // unescaping in the chunk text that preceded it).
                         var keepLen = Unescape(text, pos, dOpen - pos).Length;
                         output.Length = outLenAtLoopTop + keepLen;
-                        output.Append(QuoteBash(result));
+                        output.Append(QuoteBash(evalOut));
                     } else {
-                        output.Append(QuoteBash(result));
+                        output.Append(QuoteBash(evalOut));
                         output.Append(")");
                     }
                 } else {
-                    output.Append(QuoteBash(result));
+                    output.Append(QuoteBash(evalOut));
                 }
             } else if (insideParen) {
                 // When the operator sits inside a user-provided $(), emit the maash eval
-                // invocation bare so it becomes the body of that $(), consuming the closer.
-                end = parenClose + 1;    // consume the ) so bash sees $(maash eval … )
+                // invocation bare so it becomes the body of that $(), consuming the closer
+                // (already consumed above).
                 output.Append("maash eval ");
                 output.Append(QuoteBash("@@" + resolved.OperatorString));
                 output.Append(' ');
@@ -198,37 +217,6 @@ public static class Preprocessor {
         }
 
         return new PreprocessResult(output.ToString(), warnings);
-    }
-
-    /// <summary>
-    /// Finds the innermost (first) closing paren that balances the deepest enclosing
-    /// `$( ... )` containing <c>start</c>, but only if that paren lies within
-    /// <c>[&#95;start, stop)</c>. Scanning forward from <c>start</c>, it tracks paren
-    /// depth; the first `)` at depth <= 0 is the outermost-enclosing command-
-    /// substitution closer. If the operator is NOT inside a `$( ... )` the search
-    /// yields nothing and -1 is returned. Returns -1 when there is no enclosing
-    /// `$( )` closer before <c>stop</c>.
-    /// </summary>
-    public static int FindBalancedCloseParen(string text, int start, int stop) {
-        // Locate the nearest `$( ` open before the operand start; if it is still
-        // open at `start`, return its matching `)` (the innermost closer), else -1.
-        var back = text.LastIndexOf("$(", start);
-        if (back < 0 || back + 1 >= start) {
-            return -1;   // no enclosing $(), or its paren is AT start position
-        }
-
-        var depth = 0;
-        for (var i = back; i < text.Length; i++) {
-            if (text[i] == '(') {
-                depth++;
-            } else if (text[i] == ')') {
-                depth--;
-                if (depth <= 0) {
-                    return i;               // matching closer of that $()
-                }
-            }
-        }
-        return -1;                                        // that $() never closed
     }
 
     /// <summary>
@@ -284,6 +272,12 @@ public static class Preprocessor {
 
 /// <summary>Result of a preprocess pass.</summary>
 public sealed record PreprocessResult(string Text, IReadOnlyList<string> Warnings);
+
+/// <summary>
+/// Result of a module render: the result text and how many chars of the
+/// operand the module consumed.
+/// </summary>
+public sealed record EvalOutcome(string Output, int ParsedLength);
 
 public class MaashPreprocessorException : MaashException {
     public MaashPreprocessorException(string message) : base(message) { }

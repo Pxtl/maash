@@ -48,8 +48,8 @@ public static class Eval {
             int end;
             // At runtime the operand is already delimited (by the shell in the $(maash eval ...)
             // wrapper or by the caller). Use the same non-bracketed scoping for all operators:
-            // operand runs to the next @@ token (or EOF). The bracketed flag is only a
-            // preprocessor concern (scoping [ ... ]@@ in raw script text).
+            // operand runs to the next @@ token (or EOF). The here-bracketed flag is only a
+            // preprocessor scoping concern ([ ... ]@@ in raw script text).
             var next2 = Preprocessor.FindOperator(line, afterToken);
             var stop = next2 < 0 ? line.Length : next2;
             operand = line[afterToken..stop];
@@ -60,13 +60,13 @@ public static class Eval {
                 throw new MaashException($"Module '{resolved.Alias}' has no interpreter configured.");
             }
 
-            var ir = Invoker.Invoke(loaded.Module, resolved.Definition, "@@" + resolved.OperatorString, resolved.IsBracketed ? operand.TrimStart() : operand);
+            var ir = Invoker.Invoke(loaded.Module, resolved.EvalArg, resolved.IsHereBracketed ? operand.TrimStart() : operand, "render");
             if (ir.ExitCode != 0 && !quiet) {
                 Console.Error.WriteLine("maash: module '" + resolved.Alias + "' exited " + ir.ExitCode);
             }
 
             int subEnd = end;
-            if (!resolved.IsBracketed && ir.ParsedLength > 0 && ir.ParsedLength < operand.Length) {
+            if (!resolved.IsHereBracketed && ir.ParsedLength > 0 && ir.ParsedLength < operand.Length) {
                 subEnd = afterToken + ir.ParsedLength;
             }
 

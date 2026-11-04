@@ -15,11 +15,19 @@ public class PreprocessorTests {
         Interpreter = new MaashInterpreter { Command = "python3", Args = Array.Empty<string>() }
     };
 
+    /// <summary>
+    /// Fake M1 parseLength callback: how many chars of the operand the fake
+    /// module consumes. Non-here-bracketed ops are module-scoped (shared scan);
+    /// here-bracketed ops are maash-scoped, so the module consumes all of it.
+    /// </summary>
+    static Func<ResolvedOperator, string, int> Parse() => (resolved, operand) =>
+        resolved.IsHereBracketed ? operand.Length : FakeModuleScan.Scan(operand);
+
     [Fact]
     public void Primary_Module_Rewrites_Bare_Infix_Operators() {
         var reg = new ModuleRegistry();
         reg.Load(EchoModule(), "echo", "@@", primary: true, allowClobber: true);
-        var r = Preprocessor.Run(reg, "echo @@'hello world'@@");
+        var r = Preprocessor.Run(reg, "echo @@'hello world'@@", parseLength: Parse());
         Assert.False(r.Text.Contains("@@'hello world'@@"), "bare @@ operator should have been rewritten");
         Assert.Contains("hello world", r.Text);
     }
@@ -28,9 +36,18 @@ public class PreprocessorTests {
     public void Primary_Module_Suffixed_Operator_Fires() {
         var reg = new ModuleRegistry();
         reg.Load(EchoModule(), "echo", "@@", primary: true, allowClobber: true);
-        var r = Preprocessor.Run(reg, "echo @@+'abc'");
+        var r = Preprocessor.Run(reg, "echo @@+'abc'", parseLength: Parse());
         Assert.Contains("abc", r.Text);
         Assert.Contains("@@+", r.Text); // operator echoed in the maash eval call
+    }
+
+    [Fact]
+    public void Preprocess_NonHereBracketed_Without_Callback_Throws() {
+        var reg = new ModuleRegistry();
+        reg.Load(EchoModule(), "echo", "@@", primary: true, allowClobber: true);
+        // Maash is dumb about non-here-bracketed operand extents: with no
+        // module callback it cannot scope the operand and must throw.
+        Assert.Throws<MaashPreprocessorException>(() => Preprocessor.Run(reg, "echo @@ hello"));
     }
 
     [Fact]
@@ -95,14 +112,15 @@ public class PreprocessorTests {
 
 public class PreprocessorRenderTests {
     // Fake live evaluator: '+'-ending operators upper-case, otherwise echo.
-    // Bracketed operators echo the bare operand: the [ ]@@ delimiters are
-    // syntax, stripped by the preprocessor. Mirrors the echo fixture module.
-    static Func<ResolvedOperator, string, string> Eval() => (resolved, operand) => {
-        if (resolved.OperatorString.EndsWith('+')) {
-            return operand.ToUpperInvariant();
-        }
-
-        return operand;
+    // Non-here-bracketed operators report their extent via the shared module
+    // scan (stop at an unbalanced ')' or the next '@@'); here-bracketed
+    // operators consume the maash-scoped operand in full. Mirrors the echo
+    // fixture module.
+    static Func<ResolvedOperator, string, EvalOutcome> Eval() => (resolved, operand) => {
+        var n = resolved.IsHereBracketed ? operand.Length : FakeModuleScan.Scan(operand);
+        var consumed = operand[..n];
+        var outText = resolved.OperatorString.EndsWith('+') ? consumed.ToUpperInvariant() : consumed;
+        return new EvalOutcome(outText, n);
     };
 
     static ModuleRegistry RenderReg() {
@@ -112,7 +130,7 @@ public class PreprocessorRenderTests {
             Operators = new() {
                 [""] = new MaashOperatorDefinition { Description = "primary" },
                 ["+"] = new MaashOperatorDefinition { Description = "upper" },
-                ["["] = new MaashOperatorDefinition { Description = "bracketed" }
+                ["["] = new MaashOperatorDefinition { Description = "bracketed", HereBracketed = true }
             }
         };
         reg.Load(mod, "echo", "@@", primary: true, allowClobber: true);
@@ -187,8 +205,34 @@ public class PreprocessorRenderTests {
         var bs = "\\"; // single backslash
         var splice = "'" + bs + "''"; // '\''
         // Eval echoes; operand contains a single quote.
-        var r = Preprocessor.Run(reg, "x=$(@@ it's)", (resolved, op) => op);
+        var r = Preprocessor.Run(reg, "x=$(@@ it's)", Eval());
         Assert.Equal("x='it" + splice + "s'", r.Text);
+    }
+}
+
+/// <summary>
+/// Shared fake-module operand scan: consume up to the first unbalanced ')'
+/// (the enclosing $( ) closer) or the next unescaped '@@', whichever comes
+/// first. Mirrors the echo/shout fixture modules.
+/// </summary>
+internal static class FakeModuleScan {
+    public static int Scan(string s) {
+        var depth = 0;
+        for (var i = 0; i < s.Length; i++) {
+            if (s[i] == '(') {
+                depth++;
+            } else if (s[i] == ')') {
+                if (depth == 0) {
+                    return i;
+                }
+
+                depth--;
+            } else if (s[i] == '@' && i + 1 < s.Length && s[i + 1] == '@' && (i == 0 || s[i - 1] != '\\')) {
+                return i;
+            }
+        }
+
+        return s.Length;
     }
 }
 

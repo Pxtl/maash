@@ -13,11 +13,13 @@ public sealed class ResolvedOperator {
     public required string OperatorString { get; init; }
 
     /// <summary>
-    /// True when this operator is bracketed: the suffix (and therefore the
-    /// operator string) ends with <c>[</c>, the open bracket of the operand.
-    /// The operand runs to the next unescaped <c>]@@</c>.
+    /// True when this operator is here-bracketed: maash scopes the operand to
+    /// the next unescaped <c>]@@</c> closer. Declared by the module JSON
+    /// (hereBracketed); by convention the suffix (and operator string) ends
+    /// with the open bracket <c>[</c>. False: the module owns the operand's
+    /// extent and reports a parsed length.
     /// </summary>
-    public bool IsBracketed => Suffix.EndsWith('[');
+    public bool IsHereBracketed => Definition.HereBracketed;
 
     /// <summary>The operator token emitted to <c>maash eval</c> (always starts with <c>@@</c>).</summary>
     public string EvalArg => "@@" + OperatorString;

@@ -50,7 +50,7 @@ public sealed class Program {
         });
         root.Add(evalCmd);
 
-        var preCmd = new Command("preprocess", "Rewrite @@ tokens into maash eval invocations (no execution).");
+        var preCmd = new Command("preprocess", "Rewrite @@ tokens into maash eval invocations (no rendering).");
         var inFileOpt = new Option<string?>("-f", "--file") { Description = "Read text from this file.", DefaultValueFactory = _ => (string?)null };
         var inQuietOpt = new Option<bool>("-q", "--quiet");
         var textArg = new Argument<string[]?>("text") { DefaultValueFactory = _ => (string[]?)null, Description = "Inline text (when -f is not given)." };
@@ -112,7 +112,7 @@ public sealed class Program {
             text = Console.ReadLine() ?? string.Empty;
             var reg2 = StateBridge.LoadRegistry();
             var (_, b2) = SplitHeader(text);
-            var pre2 = Preprocessor.Run(reg2, b2);
+            var pre2 = Preprocessor.Run(reg2, b2, parseLength: (resolved, rest) => ParseLengthForPreprocess(reg2, resolved, rest));
             foreach (var w in pre2.Warnings) {
                 if (!quiet) {
                     Console.Error.WriteLine(w);
@@ -142,7 +142,7 @@ public sealed class Program {
             }
         }
 
-        var pre = Preprocessor.Run(reg, body);
+        var pre = Preprocessor.Run(reg, body, parseLength: (resolved, rest) => ParseLengthForPreprocess(reg, resolved, rest));
         foreach (var w in pre.Warnings) {
             if (!quiet) {
                 Console.Error.WriteLine(w);
@@ -234,7 +234,7 @@ public sealed class Program {
 
         PreprocessResult result;
         try {
-            result = Preprocessor.Run(reg, body, (resolved, operand) => EvalForRender(reg, resolved, operand));
+            result = Preprocessor.Run(reg, body, evaluate: (resolved, rest) => EvalForRender(reg, resolved, rest));
         } catch (MaashException ex) {
             Console.Error.WriteLine("maash: " + ex.Message);
             return 1;
@@ -247,8 +247,20 @@ public sealed class Program {
         return 0;
     }
 
-    /// <summary>Eval callback for render mode: invoke the module in-process (M1).</summary>
-    internal static string EvalForRender(ModuleRegistry reg, ResolvedOperator resolved, string operand) {
+    /// <summary>Render-mode callback: invoke the module (M1 render); return its result text plus consumed length.</summary>
+    internal static EvalOutcome EvalForRender(ModuleRegistry reg, ResolvedOperator resolved, string operand) {
+        var (output, parsedLength) = InvokeModule(reg, resolved, operand, "render");
+        return new EvalOutcome(output, parsedLength);
+    }
+
+    /// <summary>parseLength callback: module-reported extent (M1 parseLength) of a non-here-bracketed operand.</summary>
+    internal static int ParseLengthForPreprocess(ModuleRegistry reg, ResolvedOperator resolved, string operand) {
+        var (_, parsedLength) = InvokeModule(reg, resolved, operand, "parseLength");
+        return parsedLength;
+    }
+
+    /// <summary>Invoke a module via M1 (<c>parseLength</c> or <c>render</c>) and return its output plus consumed length.</summary>
+    static (string Output, int ParsedLength) InvokeModule(ModuleRegistry reg, ResolvedOperator resolved, string operand, string command) {
         if (!reg.TryGetModule(resolved.Alias, out var lm) || lm is null) {
             throw new MaashException($"Module '{resolved.Alias}' is not loaded.");
         }
@@ -257,12 +269,12 @@ public sealed class Program {
             throw new MaashException($"Module '{resolved.Alias}' has no interpreter configured.");
         }
 
-        var ir = Invoker.Invoke(lm.Module, resolved.Definition, resolved.EvalArg, resolved.IsBracketed ? operand.TrimStart() : operand);
+        var ir = Invoker.Invoke(lm.Module, resolved.EvalArg, resolved.IsHereBracketed ? operand.TrimStart() : operand, command);
         if (ir.ExitCode != 0) {
             throw new MaashException($"Module '{resolved.Alias}' exited {ir.ExitCode}.");
         }
 
-        return ir.Output;
+        return (ir.Output, ir.ParsedLength);
     }
 
     internal static int PreprocessRun(string? file, bool quiet, string[]? inline) {
@@ -292,7 +304,7 @@ public sealed class Program {
             StateBridge.SaveRegistry(reg);
         }
 
-        var result = Preprocessor.Run(reg, body);
+        var result = Preprocessor.Run(reg, body, parseLength: (resolved, rest) => ParseLengthForPreprocess(reg, resolved, rest));
         foreach (var w in result.Warnings) {
             if (!quiet) {
                 Console.Error.WriteLine("maash: " + w);
@@ -337,8 +349,8 @@ public sealed class Program {
         var (module, name) = ModuleSource.LoadFromFile(path);
         Console.WriteLine("module: " + name + "  (file: " + path + ")");
         foreach (var (suffix, def) in module.Operators) {
-            var bracketed = suffix.EndsWith('[');
-            Console.WriteLine("  @@" + (suffix.Length == 0 ? "" : suffix) + (bracketed ? " [bracketed]" : "") + ": " + def.Description);
+            var bracketed = def.HereBracketed;
+            Console.WriteLine("  @@" + (suffix.Length == 0 ? "" : suffix) + (bracketed ? " [here-bracketed]" : "") + ": " + def.Description);
         }
         return 0;
     }

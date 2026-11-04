@@ -8,7 +8,10 @@ namespace Maash.Core;
 /// The M1 process protocol between maash and a module's interpreter process.
 /// 
 /// Request (maash → module stdin):
-///   `M1 <opString> <operandByteLen>\n<operand bytes>`
+///   `M1 <command> <opString> <operandByteLen>\n<operand bytes>`
+/// where command is `parseLength` (the module reports how many chars of the
+/// operand it consumed; output is empty) or `render` (the module reports the
+/// result text plus how many chars it consumed).
 /// Response (module stdout):
 ///   `M1 <parsedCharLen> <outputByteLen>\n<output bytes>`
 /// Exit code: 0 on success, non-zero on error.
@@ -18,8 +21,13 @@ public sealed record InvokeResult(string Output, int ParsedLength, int ExitCode)
 public static class Invoker {
     const int HeaderMaxBytes = 1 << 20; // 1 MiB
 
-    /// <summary>Invoke a module interpreter for a single operator call. Blocks until the process exits.</summary>
-    public static InvokeResult Invoke(MaashModule module, MaashOperatorDefinition def, string opString, string operand) {
+    /// <summary>
+    /// Invoke a module interpreter for a single operator call (M1 v2). The
+    /// <paramref name="command"/> is <c>parseLength</c> (module reports the
+    /// operand extent; output empty) or <c>render</c> (module reports result
+    /// text plus operand extent). Blocks until the process exits.
+    /// </summary>
+    public static InvokeResult Invoke(MaashModule module, string opString, string operand, string command) {
         var interp = module.Interpreter ?? throw new MaashException($"Module '{module.Name}' has no interpreter.");
         var cmd = interp.Command ?? throw new MaashException($"Module '{module.Name}' interpreter has no command.");
         var opBytes = Encoding.UTF8.GetBytes(opString);
@@ -59,8 +67,8 @@ public static class Invoker {
         }
 
         try {
-            var request = Encoding.UTF8.GetBytes("M1 " + opString + " " + operandBytes.Length + "\n");
-            System.Diagnostics.Trace.WriteLine($"[DBG] M1 op=<{opString}> operand=<{operand}> len={operandBytes.Length}");
+            var request = Encoding.UTF8.GetBytes("M1 " + command + " " + opString + " " + operandBytes.Length + "\n");
+            System.Diagnostics.Trace.WriteLine($"[DBG] M1 cmd=<{command}> op=<{opString}> operand=<{operand}> len={operandBytes.Length}");
             using var stdin = proc.StandardInput.BaseStream;
             stdin.Write(request, 0, request.Length);
             if (operandBytes.Length > 0) {

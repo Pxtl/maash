@@ -10,16 +10,20 @@
   },
   "operators": {
     "": {
-      "description": "Primary: echo operand back"
+      "description": "Primary: echo operand back",
+      "hereBracketed": false
     },
     "+": {
-      "description": "Upper-case the operand"
+      "description": "Upper-case the operand",
+      "hereBracketed": false
     },
     "[": {
-      "description": "Bracketed: echo the operand between the [ of the operator and the ]@@ terminator"
+      "description": "Here-bracketed: echo the operand between the [ of the operator and the ]@@ terminator",
+      "hereBracketed": true
     },
     "+[": {
-      "description": "Bracketed: upper-case the operand between the [ of the operator and the ]@@ terminator"
+      "description": "Here-bracketed: upper-case the operand between the [ of the operator and the ]@@ terminator",
+      "hereBracketed": true
     }
   }
 }

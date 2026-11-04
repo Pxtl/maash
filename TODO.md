@@ -7,10 +7,12 @@
 - [x] `maash render` (hotkey-eval form) + bash init snippet (Ctrl+Alt+M)
 - [x] Adopt dotnet-repo-template conventions (AGENTS/CONTRIB/.editorconfig/.gitignore/LICENSE)
 - [x] Migrate `maash.sln` to `maash.slnx`
-- [x] Bracketed operators: suffix ends with `[` (the open bracket), closer is `]@@`
+- [x] Here-bracketed operators: explicit `hereBracketed` flag in module JSON, closer is `]@@`
 - [x] Module `defaultInfix` (echo declares `""`)
 - [x] Module bodies in subdirs (only `*.json` in `modules/` root)
+- [x] M1 protocol v2: `parseLength` + `render` commands; maash is "dumb" about
+  module-scoped operand extents (modules report `parsedLength`; no paren-balancing in maash)
 
 ## Future
 
-- (none yet)
+- [ ] Header directives via System.CommandLine: parse `#use`-style header lines with a sub-RootCommand mirroring the ctl subcommands (deferred from PR#1 third review, item 5).

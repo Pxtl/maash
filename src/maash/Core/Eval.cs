@@ -6,7 +6,11 @@ namespace Maash.Core;
 
 public sealed record EvalResult(string Output, bool Parsed, int ExitCode);
 
-public static class Evaluator {
+/// <summary>
+/// Runtime evaluation of maash operator lines: loads the persisted modules and
+/// invokes each operator (M1), splicing module output back into the line.
+/// </summary>
+public static class Eval {
     public static ModuleRegistry LoadModules() {
         var reg = new ModuleRegistry();
         foreach (var entry in StateBridge.LoadRegistry().Modules) {
@@ -16,6 +20,10 @@ public static class Evaluator {
         return reg;
     }
 
+    /// <summary>
+    /// Evaluates <paramref name="line"/> by invoking each maash operator via
+    /// its module (M1) and splicing the results in place.
+    /// </summary>
     public static EvalResult Run(string line, bool quiet = false) {
         var modules = LoadModules();
         var outp = new StringBuilder(line.Length + 64);

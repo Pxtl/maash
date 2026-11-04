@@ -296,9 +296,11 @@ This document captures the coding style patterns used in this project.
 
 ## Files
 
-- One type per file, avoid nested types.  
+- One type per file, avoid nested types.  The main class name must match the
+  file name (e.g. `Eval.cs` contains `class Eval`, not `class Evaluator`).
 - Simple one-line types can be defined in another type's file IFF the type is a
-  simple one-line declaration.
+  simple one-line declaration. Trivial one-line types go at the BOTTOM of the
+  file (after the main type).
 - Namespaces match directory path.
 
 ## Docs

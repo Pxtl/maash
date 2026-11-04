@@ -190,7 +190,7 @@ public sealed class Program {
         var opText = op.StartsWith("@@") ? op : "@@" + op;
         var line = opText + (extra.Length > 0 ? " " + string.Join(" ", extra) : "");
         // eval: fully evaluate operators, return their result text to stdout
-        var result = Evaluator.Run(line);
+        var result = Eval.Run(line);
         var outp = result.Output.TrimEnd('\n');
         Console.WriteLine(outp);
         return result.ExitCode;
@@ -247,7 +247,7 @@ public sealed class Program {
         return 0;
     }
 
-    /// <summary>Evaluator callback for render mode: invoke the module in-process (M1).</summary>
+    /// <summary>Eval callback for render mode: invoke the module in-process (M1).</summary>
     internal static string EvalForRender(ModuleRegistry reg, ResolvedOperator resolved, string operand) {
         if (!reg.TryGetModule(resolved.Alias, out var lm) || lm is null) {
             throw new MaashException($"Module '{resolved.Alias}' is not loaded.");

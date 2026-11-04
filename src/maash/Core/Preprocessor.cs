@@ -3,36 +3,6 @@ using Maash.Core;
 
 namespace Maash.Core;
 
-/// <summary>Result of a preprocess pass.</summary>
-public sealed record PreprocessResult(string Text, IReadOnlyList<string> Warnings);
-
-/// <summary>
-/// A resolved maash operator: everything after <c>@@</c> in the text, mapped
-/// to its module + operator definition.
-/// </summary>
-public sealed class ResolvedOperator {
-    public required string Alias { get; init; }
-    public required MaashOperatorDefinition Definition { get; init; }
-    public required string Suffix { get; init; }
-
-    /// <summary>Full operator string following <c>@@</c> (i.e. after the two @ signs).</summary>
-    public required string OperatorString { get; init; }
-
-    /// <summary>
-    /// True when this operator is bracketed: the suffix (and therefore the
-    /// operator string) ends with <c>[</c>, the open bracket of the operand.
-    /// The operand runs to the next unescaped <c>]@@</c>.
-    /// </summary>
-    public bool IsBracketed => Suffix.EndsWith('[');
-
-    /// <summary>The operator token emitted to <c>maash eval</c> (always starts with <c>@@</c>).</summary>
-    public string EvalArg => "@@" + OperatorString;
-}
-
-public class MaashPreprocessorException : MaashException {
-    public MaashPreprocessorException(string message) : base(message) { }
-}
-
 /// <summary>
 /// The maash preprocessor. Converts maash operators (@@...) in bash text
 /// into escaped invocations of <c>maash eval</c>. This is syntactic sugar only:
@@ -50,8 +20,8 @@ public static class Preprocessor {
         return -1;
     }
 
-    /// <summary>Finds the <c>]</c> of the next unescaped <c>]@@</c> at or after pos (the closer of a bracketed operand), or -1.</summary>
-    public static int FindBracketClose(string text, int pos) {
+    /// <summary>Index of the <c>]</c> starting the next unescaped <c>]@@</c> closer at or after pos, or -1.</summary>
+    public static int IndexOfHereBracketClose(string text, int pos) {
         for (var i = pos; i + 2 < text.Length; i++) {
             if (text[i] == ']' && text[i + 1] == '@' && text[i + 2] == '@' &&
                 (i == 0 || text[i - 1] != '\\')) {
@@ -135,7 +105,7 @@ public static class Preprocessor {
                 // The operator string already ends with the open bracket '[',
                 // so the operand starts right at afterToken and runs to the
                 // next unescaped ']@@' closer.
-                var close = FindBracketClose(text, afterToken);
+                var close = IndexOfHereBracketClose(text, afterToken);
                 if (close < 0) {
                     throw new MaashPreprocessorException(
                         $"Unterminated bracketed operand for operator '@@{resolved.OperatorString}': no ']@@' closer.");
@@ -310,4 +280,11 @@ public static class Preprocessor {
         builder.Append('\'');
         return builder.ToString();
     }
+}
+
+/// <summary>Result of a preprocess pass.</summary>
+public sealed record PreprocessResult(string Text, IReadOnlyList<string> Warnings);
+
+public class MaashPreprocessorException : MaashException {
+    public MaashPreprocessorException(string message) : base(message) { }
 }

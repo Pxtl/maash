@@ -186,7 +186,7 @@ public class PreprocessorRenderTests {
         var reg = RenderReg();
         var bs = "\\"; // single backslash
         var splice = "'" + bs + "''"; // '\''
-        // Evaluator echoes; operand contains a single quote.
+        // Eval echoes; operand contains a single quote.
         var r = Preprocessor.Run(reg, "x=$(@@ it's)", (resolved, op) => op);
         Assert.Equal("x='it" + splice + "s'", r.Text);
     }

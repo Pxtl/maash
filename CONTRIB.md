@@ -19,13 +19,12 @@ This document captures the coding style patterns used in this project.
 
 ## Naming
 
-- Use clear, full-word names for variables, parameters, and types.  No
-  single-letter names (a, b, x), including lambda parameters to
-  higher-order functions: prefer `players.Select(player => ...)` over
-  `players.Select(p => ...)`.  Exception: trivially-scoped loop counters
-  and indices (`for (var i = 0; ...)`).
-- Well-known abbreviations are fine, especially for variables (e.g. `ctx`,
+- Use clear, informative names for variables, parameters, and types.
+  Well-known abbreviations are fine, especially for variables (e.g. `ctx`,
   `idx`, `msg`, `tmp`).
+- 1- or 2-character names are okay for loop indexes and lambda parameters,
+  but should still be informative: `i` for a for-loop counter, or the first
+  char of the object's name (`bookCollection.Select(b => b.Title)`).
 
 ## Indentation
 

@@ -17,6 +17,16 @@ This document captures the coding style patterns used in this project.
 - **File-level usings**: Place `using` directives before the namespace
   declaration.
 
+## Naming
+
+- Use clear, full-word names for variables, parameters, and types.  No
+  single-letter names (a, b, x), including lambda parameters to
+  higher-order functions: prefer `players.Select(player => ...)` over
+  `players.Select(p => ...)`.  Exception: trivially-scoped loop counters
+  and indices (`for (var i = 0; ...)`).
+- Well-known abbreviations are fine, especially for variables (e.g. `ctx`,
+  `idx`, `msg`, `tmp`).
+
 ## Indentation
 
 - Use **spaces** for indentation (not tabs).
@@ -63,6 +73,9 @@ This document captures the coding style patterns used in this project.
 ## Linebreaks
 
 - Break logical statements on new lines if they're too long.
+- If a multi-parameter signature doesn't fit within the line length limit,
+  put each parameter on its own line.  Short signatures that fit are fine to
+  stay on one line.
 - Use whitespace after commas in multi-parameter calls.
 - Soft length limit at 80 char, hard limit at 120 char.  Avoid complicated logic
   on a single line.

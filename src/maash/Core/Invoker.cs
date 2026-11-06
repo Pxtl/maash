@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
+using Maash.Core.ModuleModel;
 
 namespace Maash.Core;
 

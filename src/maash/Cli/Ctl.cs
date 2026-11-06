@@ -1,5 +1,6 @@
 using System.CommandLine;
 using Maash.Core;
+using Maash.Core.ModuleModel;
 using Maash.State;
 
 namespace Maash.Cli;
@@ -59,9 +60,17 @@ public static class Ctl {
             useCmd.Add(option);
         }
 
-        useCmd.SetAction(pr => RunUse(pr,
-            pr.GetValue<string?>(moduleArg), fileOpt, inlineOpt, aliasOpt, infixOpt,
-            primaryOpt, clobberOpt, suppressAlnumOpt));
+        useCmd.SetAction(pr => RunUseOrLoad(
+            pr,
+            pr.GetValue<string?>(moduleArg),
+            pr.GetValue(fileOpt),
+            aliasOpt,
+            infixOpt,
+            primaryOpt,
+            clobberOpt,
+            suppressAlnumOpt,
+            asFile: false,
+            inline: pr.GetValue(inlineOpt)));
         ctl.Add(useCmd);
 
         // move [module-alias] (accepts use params)
@@ -84,7 +93,7 @@ public static class Ctl {
             loadCmd.Add(option);
         }
 
-        loadCmd.SetAction(pr => UseRun(
+        loadCmd.SetAction(pr => RunUseOrLoad(
             pr,
             pr.GetRequiredValue<string>(loadFileArg),
             null,
@@ -200,39 +209,12 @@ public static class Ctl {
     // ---------- handlers ----------
 
     /// <summary>
-    /// Action for 'ctl use': reads the parsed options and delegates to UseRun
-    /// (asFile false).
-    /// </summary>
-    /// <returns>0 on success, 1 on error.</returns>
-    internal static int RunUse(ParseResult parseResult,
-        string? moduleArgument,
-        Option<string?> fileOpt,
-        Option<string?> inlineOpt,
-        Option<string?> aliasOpt,
-        Option<string?> infixOpt,
-        Option<bool> primaryOpt,
-        Option<bool> clobberOpt,
-        Option<bool> suppressAlnumOpt) {
-        return UseRun(
-            parseResult,
-            moduleArgument,
-            parseResult.GetValue(fileOpt),
-            aliasOpt,
-            infixOpt,
-            primaryOpt,
-            clobberOpt,
-            suppressAlnumOpt,
-            asFile: false,
-            inline: parseResult.GetValue(inlineOpt));
-    }
-
-    /// <summary>
     /// Shared load implementation for 'ctl use' (asFile false) and 'ctl load'
     /// (asFile true): loads a module by name, -f file, or -i inline and
     /// persists the registry.
     /// </summary>
     /// <returns>0 on success, 1 on error.</returns>
-    internal static int UseRun(ParseResult parseResult,
+    internal static int RunUseOrLoad(ParseResult parseResult,
         string? nameArg,
         string? fileArg,
         Option<string?> aliasOpt,
@@ -415,7 +397,12 @@ public static class Ctl {
             }
             string val = "";
             bool hasVal = pos + 1 < fields.Length && !fields[pos + 1].StartsWith("-");
-            if (hasVal) { val = fields[pos + 1]; pos += 2; } else { pos++; }
+            if (hasVal) {
+                val = fields[pos + 1];
+                pos += 2;
+            } else {
+                pos++;
+            }
 
             switch (tok) {
                 case "-p": case "--primary": d.IsPrimary = true; break;

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Maash.Core;
+using Maash.Core.ModuleModel;
 
 namespace Maash.State;
 

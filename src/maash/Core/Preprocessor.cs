@@ -20,7 +20,7 @@ public static class Preprocessor {
         return -1;
     }
 
-    /// <summary>Index of the <c>]</c> starting the next unescaped <c>]@@</c> closer at or after pos, or -1.</summary>
+    /// <summary>Index of the first char of the next unescaped <c>]@@</c> closer after (or at) pos. Returns -1 if not found.</summary>
     public static int IndexOfHereBracketClose(string text, int pos) {
         for (var i = pos; i + 2 < text.Length; i++) {
             if (text[i] == ']' && text[i + 1] == '@' && text[i + 2] == '@' &&

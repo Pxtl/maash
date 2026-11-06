@@ -1,4 +1,5 @@
 using Maash.Core;
+using Maash.Core.ModuleModel;
 using Xunit;
 
 namespace Maash.Tests;

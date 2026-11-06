@@ -108,7 +108,16 @@ evaluates each operator live and splices the result in.
 
 A maash module registers one or more maash operators, all of which start with @@,
 then an infix (which is overridable when a module is loaded), then a suffix
-(which is per-operator).  When a module is loaded, an interpreter for the
+(which is per-operator).
+
+Import rules: a module is *always* imported on its infix.  If the module is
+imported as primary, it is *also* imported on the naked @@ operation (the
+unprefixed infix is the primary module's bonus).  Every module should declare a
+default infix (defaultInfix in the module JSON; never empty), which can be
+overridden during import (-x/--infix) to prevent collisions or for convenience.
+When defaultInfix is omitted, the module name is used.
+
+When a module is loaded, an interpreter for the
 language is spawned and its state persists until the module is removed.  This
 allows maash operators to use variables across the script.  maash operators must
 also be able to share the environment variables with the parent bash
@@ -232,11 +241,12 @@ that's just part of the existing operator.
 
 #### The Primary Module
 
-The "primary" module gets to use the unprefixed @@.  Every other module must
-live on their infix, with their individual operator suffixes after that infix.
-So if C# defined @@ for expressions that return and @@~ for things that don't,
-and it was loaded as non-primary with the # infix, then the operators would
-become @@# and @@#~.
+The "primary" module gets to use the unprefixed @@, *in addition to* its infix
+import (every module is imported on its infix; the unprefixed @@ is the
+primary module's bonus).  Every other module must live on their infix, with
+their individual operator suffixes after that infix.  So if C# defined @@ for
+expressions that return and @@~ for things that don't, and it was loaded as
+non-primary with the # infix, then the operators would become @@# and @@#~.
 
 #### Alphanumeric infixes
 

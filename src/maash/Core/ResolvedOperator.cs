@@ -1,3 +1,5 @@
+using Maash.Core.ModuleModel;
+
 namespace Maash.Core;
 
 /// <summary>

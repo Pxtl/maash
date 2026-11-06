@@ -1,6 +1,6 @@
 {
   "name": "echo",
-  "defaultInfix": "",
+  "defaultInfix": "!",
   "interpreter": {
     "command": "python3",
     "args": [

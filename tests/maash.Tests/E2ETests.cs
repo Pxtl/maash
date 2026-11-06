@@ -172,13 +172,13 @@ public class E2ETests {
         var err = proc.StandardError.ReadToEnd();
         proc.WaitForExit();
         Assert.True(proc.ExitCode == 0, $"ctl use: rc={proc.ExitCode} err={err} out={outp}");
-        // With defaultInfix "" the loaded infix is empty.
-        Assert.Contains("infix ''", outp);
+        // echo's defaultInfix is "!" so the loaded infix is "!".
+        Assert.Contains("infix '!'", outp);
     }
 
     [Fact]
     public void Ctl_Use_AlnumInfix_Warns_And_Suppress_Silences() {
-        // echo's defaultInfix is empty, so -x S overrides it with an alnum infix.
+        // -x S overrides echo's "!" default with an alnum infix (WARN fires).
         var echoJson = Path.Combine(RepoRoot, "modules", "echo.json");
         var warn = RunMaash(new[] { "ctl", "use", "echo", "-f", echoJson, "-x", "S" }, NewKey());
         Assert.True(warn.rc == 0, $"load: rc={warn.rc} err={warn.err}");

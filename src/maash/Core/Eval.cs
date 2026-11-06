@@ -79,6 +79,10 @@ public static class Eval {
         return new EvalResult(outp.ToString(), hasOp, 0);
     }
 
+    /// <summary>
+    /// Resolves a full operator string (the text after <c>@@</c>) to the owning
+    /// module alias and operator definition, or null when unregistered.
+    /// </summary>
     public static (string Alias, MaashOperatorDefinition Def, string OpString)? ResolveOp(ModuleRegistry reg, string opString) {
         if (!reg.Operators.TryGetValue(opString, out var lo)) {
             return null;

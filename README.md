@@ -23,7 +23,7 @@ intended to be language agnostic about what those other languages are.
 Note that while maash has a preprocessor, it is *not* intended to output the
 final string values.  The maash preprocessing converts maash operations into
 properly escaped invocations of `maash eval`.  While maash invocations are
-parsed as early as possible, their undlerlying interpreter is invoked within
+parsed as early as possible, their underlying interpreter is invoked within
 their bash commands.  The preprocessor is syntactic sugar over `maash eval`.
 
 ## Interfaces into maash
@@ -60,9 +60,14 @@ lines of the script will be handled as maactl subcommands without the leading
 - `maash eval [maash-operator-suffix] [[argv]]` invokes a maash operator (given
   using the module infix and operator suffix) from the current `maactl` and
   returns the result to stdout.
-- `maash <something, name pending> [string]` a form of the preprocessor
-  specifically designed for the maash hotkey, where maash operations are fully
-  evaluated and the resulting bash is provided.
+- `maash render [-f|--file file-path] [text]` (provisional name, was "name
+  pending") a form of the preprocessor specifically designed for the maash
+  hotkey, where maash operations are fully evaluated and the resulting bash is
+  provided on stdout.  Like `preprocess`, it accepts a file, an inline text,
+  or (with no argument) stdin.  Operators are evaluated live and spliced in
+  as quoted literals instead of `maash eval` wrappers.  A `$( op )` with an
+  empty prefix collapses to just the literal; `$(cmd op ...)` keeps the
+  substitution and evaluates the operator inside it.
 - `maash init` intended to be run in the caller scope ie in their .bashrc, run
   with `eval "$(maash init)"`, handles creating the maactl alias and the @@
   function and any other in-bash customization needed.
@@ -70,11 +75,49 @@ lines of the script will be handled as maactl subcommands without the leading
   get help about a module or operator.
   - arg -f [file-path] --file to get help on a module by module file.
 
+### Usage (current implementation)
+
+    maash [script.maash]            preprocess + execute (no args: read stdin, print)
+    maash preprocess [-f FILE]      print preprocessed bash to stdout (TTY: stdin)
+    maash eval <op> [args...]       invoke one module operator (M1 protocol)
+    maash ctl <verb> [args]         module registry (use/move/load/remove/clean)
+    maash init                      print the bash hotkey snippet
+    maash render [-f FILE] [text]   hotkey-eval form: fully evaluate ops, emit bash (name provisional)
+    maash help [topic] [-f FILE]    help for maash, a module, or an operator
+    maash -- <script> [args]        POSIX passthrough; script + args reach bash directly
+
+Header directives are maactl subcommands (`use`, `move`, `load`, `remove`,
+`clean`) without the leading `maactl`, terminated by a `^---$` line. Primary
+module: `-p` flag, or the sole module when exactly one is used.
+
+Module search dirs for `use <name>` (in order):
+
+1. `$MAASH_MODULE_ROOTS` (colon-separated, if set)
+2. `<cwd>/modules` (development convenience)
+3. `/usr/local/share/maash`
+4. `~/.local/share/maash`
+
+A `-f <path>` header resolves relative to the CWD first, then the script's dir.
+
+The hotkey-eval form is `maash render` (provisional name; the design above
+leaves it "name pending").  Like the eval-wrapper path, every operator
+invocation is a fresh interpreter process (no cross-operator state); render
+evaluates each operator live and splices the result in.
+
 ## maash modules
 
 A maash module registers one or more maash operators, all of which start with @@,
 then an infix (which is overridable when a module is loaded), then a suffix
-(which is per-operator).  When a module is loaded, an interpreter for the
+(which is per-operator).
+
+Import rules: a module is *always* imported on its infix.  If the module is
+imported as primary, it is *also* imported on the naked @@ operation (the
+unprefixed infix is the primary module's bonus).  Every module should declare a
+default infix (defaultInfix in the module JSON; never empty), which can be
+overridden during import (-x/--infix) to prevent collisions or for convenience.
+When defaultInfix is omitted, the module name is used.
+
+When a module is loaded, an interpreter for the
 language is spawned and its state persists until the module is removed.  This
 allows maash operators to use variables across the script.  maash operators must
 also be able to share the environment variables with the parent bash
@@ -83,6 +126,11 @@ the maash operators script and having them appear in the encapsulating bash, and
 vice versa.  These will not be the same as standard native variables, but will
 be stored in a language-appropriate collection (for example the `$env:` variable
 scope in pwsh).
+
+Because a maash module must persist and must do substantial transformations on
+the data going in/out, it can be more than just a .json definition.  A maash
+module will likely need an underlying dll or npm package or other form of
+assembly in the target language to interact with maash.
 
 ## maactl
 
@@ -153,9 +201,18 @@ maash operators greedily (so longest-operator-wins).  Maash operators and their
 operands are then sent onto their interpreter of the module's choice. It is the
 module's responsibility to provide not just output, but also respond with the
 length of the parsed operand so that maash can know what range of the bash
-string to replace.  If the module cannot parse and determine the length of the
-operand, maash will error unless run in bracketed mode, in which the maash
-operator parameter ends with `]@@`.
+string to replace.
+
+There are two kinds of operator, by operand ownership:
+
+- **Module-scoped** (the default): the module owns the operand's extent.
+  maash gives the module the rest of the input from just after the operator
+  and the module reports how many characters of it it consumed
+  (`parsedLength`, M1).  maash does not parse the operand's syntax at all.
+- **Here-bracketed**: flagged in the module's JSON
+  (`"hereBracketed": true`); maash owns the extent.  The operand runs from
+  just after the operator (and any whitespace) to the `]@@` terminator, and
+  the module is handed the bare operand.
 
 Maash operators will generally accept exactly one operand in script-file mode,
 although the `maash eval` and `maash preprocess` subcommands will accept an
@@ -167,10 +224,14 @@ So, for a C#-based maash-operator with the infix `#`
 ```
 @@#"hello, world".ToUpper()
 ```
-Or in bracketed mode
+Or in here-bracketed mode
 ```
 @@#["hello, world".ToUpper()]@@
 ```
+The here-bracketed flag lives in the module's JSON (`"hereBracketed": true`),
+not in the suffix.  In the example above the operand is
+`"hello, world".ToUpper()`, the text between the operator and the `]@@`
+terminator; the module is handed that bare operand.
 
 A module can register multiple operators.  By convention, braced mode can be
 provided by a module `@@#{var myVar = "hello, world"; return myvar;}` - it might
@@ -180,11 +241,12 @@ that's just part of the existing operator.
 
 #### The Primary Module
 
-The "primary" module gets to use the unprefixed @@.  Every other module must
-live on their infix, with their individual operator suffixes after that infix.
-So if C# defined @@ for expressions that return and @@~ for things that don't,
-and it was loaded as non-primary with the # infix, then the operators would
-become @@# and @@#~.
+The "primary" module gets to use the unprefixed @@, *in addition to* its infix
+import (every module is imported on its infix; the unprefixed @@ is the
+primary module's bonus).  Every other module must live on their infix, with
+their individual operator suffixes after that infix.  So if C# defined @@ for
+expressions that return and @@~ for things that don't, and it was loaded as
+non-primary with the # infix, then the operators would become @@# and @@#~.
 
 #### Alphanumeric infixes
 

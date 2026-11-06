@@ -1,0 +1,29 @@
+{
+  "name": "echo",
+  "defaultInfix": "!",
+  "interpreter": {
+    "command": "python3",
+    "args": [
+      "echo/echo.py"
+    ],
+    "relativePaths": true
+  },
+  "operators": {
+    "": {
+      "description": "Primary: echo operand back",
+      "hereBracketed": false
+    },
+    "+": {
+      "description": "Upper-case the operand",
+      "hereBracketed": false
+    },
+    "[": {
+      "description": "Here-bracketed: echo the operand between the [ of the operator and the ]@@ terminator",
+      "hereBracketed": true
+    },
+    "+[": {
+      "description": "Here-bracketed: upper-case the operand between the [ of the operator and the ]@@ terminator",
+      "hereBracketed": true
+    }
+  }
+}
